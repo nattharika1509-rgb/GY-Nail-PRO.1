@@ -617,12 +617,18 @@ const defaultMenu = {
 
 // API Functions
 const apiCall = (action, params, onSuccess, onFailure) => {
-    const endpoint = `${API_URL}?action=${action}`;
+    const queryParams = new URLSearchParams({ action: action });
+    for (const key in params) {
+        if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+            const value = typeof params[key] === 'object' ? JSON.stringify(params[key]) : params[key];
+            queryParams.append(key, value);
+        }
+    }
+    const endpoint = `${API_URL}?${queryParams.toString()}`;
+    
     fetch(endpoint, {
-        method: "POST",
-        redirect: "follow", 
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(params) 
+        method: "GET",
+        redirect: "follow"
     })
     .then(r => r.json())
     .then(data => {
