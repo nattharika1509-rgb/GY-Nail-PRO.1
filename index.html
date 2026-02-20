@@ -252,10 +252,14 @@
             </div>
 
             <div id="admin-dash" class="hidden">
-                <div class="grid grid-cols-2 gap-3 mb-4">
+                <div class="grid grid-cols-3 gap-3 mb-4">
                     <div class="glass-panel rounded-xl p-4 text-center">
                         <p class="text-xs text-gray-500 mb-1">รายได้วันนี้</p>
                         <p class="text-xl font-bold text-rose-500" id="today-revenue">฿0</p>
+                    </div>
+                    <div class="glass-panel rounded-xl p-4 text-center">
+                        <p class="text-xs text-gray-500 mb-1">รายได้เดือนนี้</p>
+                        <p class="text-xl font-bold text-green-500" id="month-revenue">฿0</p>
                     </div>
                     <div class="glass-panel rounded-xl p-4 text-center">
                         <p class="text-xs text-gray-500 mb-1">คิวรออนุมัติ</p>
@@ -582,7 +586,7 @@
 // ============================================
 
 // ⚠️ เปลี่ยน URL นี้เป็น Web App URL ที่ได้จากการ Deploy Google Apps Script
-const API_URL = "https://script.google.com/macros/s/AKfycbypeXqzapkcfaMVhtwGaWDfc4FBf8VoYXo64y-c5RNXj1LmS-iYmL3tTSyBCIKDVOcMjA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwboPVeuKGXE5yqtMO3iAOXwCElurOHIkimOiOrGMwFcsihlcbx6TCChi12JT8OgRtNEw/exec";
 
 let settings = {}; 
 let bookings = [];
@@ -616,20 +620,34 @@ const defaultMenu = {
 };
 
 // API Functions
+const PUBLIC_ACTIONS = ['getPublicSettings', 'getServices', 'getStaffs', 'getAvailableSlots', 'getBookedSlots', 'test'];
+
 const apiCall = (action, params, onSuccess, onFailure) => {
-    const queryParams = new URLSearchParams({ action: action });
-    for (const key in params) {
-        if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
-            const value = typeof params[key] === 'object' ? JSON.stringify(params[key]) : params[key];
-            queryParams.append(key, value);
+    const isPublic = PUBLIC_ACTIONS.includes(action);
+
+    let fetchPromise;
+    if (isPublic) {
+        const queryParams = new URLSearchParams({ action: action });
+        for (const key in params) {
+            if (params[key] !== undefined && params[key] !== null && params[key] !== '') {
+                const value = typeof params[key] === 'object' ? JSON.stringify(params[key]) : params[key];
+                queryParams.append(key, value);
+            }
         }
+        fetchPromise = fetch(`${API_URL}?${queryParams.toString()}`, {
+            method: "GET",
+            redirect: "follow"
+        });
+    } else {
+        fetchPromise = fetch(`${API_URL}?action=${encodeURIComponent(action)}`, {
+            method: "POST",
+            redirect: "follow",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(params)
+        });
     }
-    const endpoint = `${API_URL}?${queryParams.toString()}`;
-    
-    fetch(endpoint, {
-        method: "GET",
-        redirect: "follow"
-    })
+
+    fetchPromise
     .then(r => r.json())
     .then(data => {
         if(data.status === 'error' && !data.bookings) {
@@ -1069,7 +1087,10 @@ function updateStatus(row, status) {
 
 function deleteBooking(row) { 
     if(!confirm("ต้องการลบรายการนี้ใช่ไหม?")) return; 
-    googleScriptRun.deleteBooking(row, loadAdminData); 
+    googleScriptRun.deleteBooking(row, () => {
+        loadAdminData();
+        loadDashboardStats();
+    }); 
 }
 
 function showSettingsModal() {
